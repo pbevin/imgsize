@@ -50,7 +50,7 @@ pub struct ImageMetadata {
     pub comments: Vec<Vec<u8>>,
 }
 
-pub fn read_file(path: &Path) -> Result<ImageMetadata, Error> {
+pub fn read_file(path: impl AsRef<Path>) -> Result<ImageMetadata, Error> {
     let buf = std::fs::read(path)?;
     Ok(read_bytes(&buf)?)
 }
