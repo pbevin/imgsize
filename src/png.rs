@@ -23,11 +23,14 @@ pub fn read_png_data<T: AsRef<[u8]>>(buf: T) -> Result<ImageMetadata, PngDecodin
     let mut dimensions: Option<(u32, u32)> = None;
 
     let mut pos = 8;
-    while pos < buf.len() {
+    while pos + 12 < buf.len() {
         let chunk_length = u32::from_be_bytes([buf[pos], buf[pos + 1], buf[pos + 2], buf[pos + 3]]);
         pos += 4;
         let chunk_type = [buf[pos], buf[pos + 1], buf[pos + 2], buf[pos + 3]];
         pos += 4;
+        if pos + chunk_length as usize + 4 > buf.len() {
+            return Err(PngDecodingError::InvalidChunkCrc);
+        }
         let chunk_data = &buf[pos..][..chunk_length as usize];
         pos += chunk_length as usize;
         let chunk_crc = u32::from_be_bytes([buf[pos], buf[pos + 1], buf[pos + 2], buf[pos + 3]]);
@@ -160,6 +163,37 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert_matches!(err, PngDecodingError::InvalidIHDRLength(14));
+    }
+
+    #[test]
+    fn test_truncated_segment() {
+        let data = [0x89, 0x50, 0x4e, 0x47, 0xff, 0x00, 0xff, 0xff, 0xb9];
+        let _ = read_png_data(data);
+    }
+
+    #[test]
+    fn test_invalid_length() {
+        // 00000000: 8950 4e47 3000 0000 eeff 0000 0000 0000  .PNG0...........
+        // 00000010: 00ff d8ff 40                             ....@
+
+        let data = [
+            0x89, 0x50, 0x4e, 0x47, 0x30, 0x00, 0x00, 0x00, 0xee, 0xff, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0xff, 0xd8, 0xff, 0x40,
+        ];
+
+        let _ = read_png_data(data);
+    }
+
+    #[test]
+    fn test_length_overrun() {
+        // 00000000: 8950 4e47 dbdb 0000 0000 003a 0000 4ad8  .PNG.......:..J.
+        // 00000010: fff8 0013 0000 0000 0000 0000 0000 0000  ................
+        // 00000020: 1000 0000 0000 0000 f800 1300 0000 bbbb  ................
+        // 00000030: bbbb bbbb bbbb bb00 0000 00f8 0009 0000  ................
+        // 00000040: 00ff ffff ffff ffdb db3d                 .........=
+
+        let data = include_bytes!("invalid01.png");
+        let _ = read_png_data(data);
     }
 
     fn sample_image() -> Vec<u8> {

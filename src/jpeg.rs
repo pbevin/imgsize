@@ -1,3 +1,5 @@
+use std::fmt::{self, Debug};
+
 use super::ImageMetadata;
 
 #[derive(Debug, thiserror::Error)]
@@ -19,6 +21,9 @@ pub enum JpegDecodingError {
 
     #[error("Invalid JPEG segment length: {0:?}")]
     InvalidSegmentLength(usize),
+
+    #[error("Unexpected end of data at position {0}")]
+    UnexpectedEndOfData(usize),
 }
 
 /// Read JPEG data, and return its dimensions and any comments found.
@@ -83,6 +88,16 @@ struct JpegSegment<'a> {
     position: usize,
     marker: u16,
     data: &'a [u8],
+}
+
+impl<'a> Debug for JpegSegment<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("JpegSegment")
+            .field("marker", &format_args!("0x{:04x}", self.marker))
+            .field("length", &self.data.len())
+            .field("position", &self.position)
+            .finish()
+    }
 }
 
 impl<'a> TryFrom<JpegContext<'a>> for ImageMetadata {
@@ -154,6 +169,9 @@ impl<'a> JpegContext<'a> {
             self.position += 2;
             return Ok((marker, 0));
         }
+        if self.position + 4 > self.buf.len() {
+            return Err(JpegDecodingError::UnexpectedEndOfData(self.position));
+        }
         let len = u16::from_be_bytes([self.buf[self.position + 2], self.buf[self.position + 3]]);
         self.position += 4;
         Ok((marker, len.into()))
@@ -212,6 +230,7 @@ impl<'a> JpegSegment<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assert_matches::assert_matches;
 
     #[test]
     fn test_is_sof_marker() {
@@ -361,6 +380,21 @@ mod tests {
         };
         let segment = context.read_segment().unwrap();
         assert!(segment.is_none());
+    }
+
+    #[test]
+    fn test_sof0_without_length() {
+        let buf = &[0xff, 0xe0]; // SOF0 marker without length
+
+        let mut context = JpegContext {
+            buf,
+            position: 0,
+            comments: vec![],
+            dimensions: None,
+        };
+        let segment = context.read_segment().unwrap_err();
+
+        assert_matches!(segment, JpegDecodingError::UnexpectedEndOfData(0));
     }
 
     /// Create a SOF0 segment from the given data, and read its dimensions.
