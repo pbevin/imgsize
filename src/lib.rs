@@ -1,4 +1,19 @@
-//! Fast reader for JPEG comments and dimensions
+//! Fast reader for JPEG and PNG comments and dimensions.
+//!
+//! The `pb-imgsize` crate provides a reader for JPEG and PNG images that can
+//! quickly extract the image's dimensions and any comments embedded in the
+//! image.
+//!
+//! For PNG images, the dimensions are extracted from the IHDR chunk, and the
+//! comments are extracted from tEXt chunks with the keyword "comment".
+//!
+//! For JPEG images, the dimensions are extracted from the SOFx chunk, and the
+//! comments are extracted from COM chunks.
+//!
+//! The reader is fast because it only reads the chunks that are necessary to
+//! extract the dimensions and comments. It does not decode the image data.
+//!
+//! The reader does not attempt to read EXIF data.
 //!
 //! # Example
 //!
@@ -12,35 +27,83 @@
 
 mod jpeg;
 mod png;
+use std::fmt::Display;
 use std::io;
 use std::path::Path;
 
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("IO error: {0}")]
-    Io(#[from] io::Error),
+pub use jpeg::JpegDecodingError;
+pub use png::PngDecodingError;
 
-    #[error("Decoding error: {0}")]
-    Decoding(#[from] DecodingError),
+/// An error that occurred while reading an image.
+#[derive(Debug)]
+pub enum Error {
+    Io(io::Error),
+    Decoding(DecodingError),
 }
 
+impl From<io::Error> for Error {
+    fn from(e: io::Error) -> Self {
+        Error::Io(e)
+    }
+}
+
+impl From<DecodingError> for Error {
+    fn from(e: DecodingError) -> Self {
+        Error::Decoding(e)
+    }
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            Error::Io(e) => write!(f, "IO error: {}", e),
+            Error::Decoding(e) => write!(f, "Decoding error: {}", e),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
 /// An error that occurred while decoding an image.
-#[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DecodingError {
-    #[error("Unknown magic number in image data: 0x{0:08x}")]
+    // #[error("Unknown magic number in image data: 0x{0:08x}")]
     UnknownMagic(u32),
 
-    #[error(transparent)]
-    Jpeg(#[from] jpeg::JpegDecodingError),
+    // #[error(transparent)]
+    Jpeg(jpeg::JpegDecodingError),
 
-    #[error(transparent)]
-    Png(#[from] png::PngDecodingError),
+    // #[error(transparent)]
+    Png(png::PngDecodingError),
 
-    #[error("Image data too short: {0} bytes")]
+    // #[error("Image data too short: {0} bytes")]
     TooShort(usize),
 }
 
-pub type Result<T, E = DecodingError> = std::result::Result<T, E>;
+impl From<jpeg::JpegDecodingError> for DecodingError {
+    fn from(e: jpeg::JpegDecodingError) -> Self {
+        DecodingError::Jpeg(e)
+    }
+}
+
+impl From<png::PngDecodingError> for DecodingError {
+    fn from(e: png::PngDecodingError) -> Self {
+        DecodingError::Png(e)
+    }
+}
+
+impl Display for DecodingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            DecodingError::UnknownMagic(magic) => {
+                write!(f, "Unknown magic number: 0x{:08x}", magic)
+            }
+            DecodingError::Jpeg(e) => write!(f, "JPEG decoding error: {}", e),
+            DecodingError::Png(e) => write!(f, "PNG decoding error: {}", e),
+            DecodingError::TooShort(n) => write!(f, "Image data too short: {} bytes", n),
+        }
+    }
+}
 
 /// An image's dimensions, along with any comments found in the data.
 #[derive(Debug, Clone, PartialEq, Eq)]

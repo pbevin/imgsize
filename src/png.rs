@@ -1,16 +1,28 @@
+use std::fmt::Display;
+
 use super::ImageMetadata;
 
-#[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
+/// An error that occurred while decoding a PNG image.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PngDecodingError {
-    #[error("IHDR chunk missing from PNG")]
     MissingIHDR,
-
-    #[error("Invalid IHDR chunk length: {0}")]
     InvalidIHDRLength(u32),
-
-    #[error("Invalid chunk CRC")]
     InvalidChunkCrc,
 }
+
+impl Display for PngDecodingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            PngDecodingError::MissingIHDR => write!(f, "IHDR chunk missing from PNG"),
+            PngDecodingError::InvalidIHDRLength(len) => {
+                write!(f, "Invalid IHDR chunk length: {}", len)
+            }
+            PngDecodingError::InvalidChunkCrc => write!(f, "Invalid chunk CRC"),
+        }
+    }
+}
+
+impl std::error::Error for PngDecodingError {}
 
 /// Read PNG data, and return its dimensions and any comments found.
 pub fn read_png_data<T: AsRef<[u8]>>(buf: T) -> Result<ImageMetadata, PngDecodingError> {

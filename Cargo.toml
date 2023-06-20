@@ -12,9 +12,7 @@ keywords = ["image", "png", "jpeg"]
 
 [dependencies]
 crc32fast = "1.3.2"
-log = "0.4.19"
 memchr = "2.5.0"
-thiserror = "1.0.40"
 
 [dev-dependencies]
 assert_matches = "1.5.0"

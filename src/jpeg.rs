@@ -1,30 +1,54 @@
-use std::fmt::{self, Debug};
+use std::fmt::{self, Debug, Display};
 
 use super::ImageMetadata;
 
-#[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
+/// An error that occurred while decoding a JPEG image.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JpegDecodingError {
-    #[error("No SOI marker found")]
     NoSoiMarker,
-
-    #[error("No SOF marker found")]
     NoSofMarker {
         position: usize,
         comments: Vec<Vec<u8>>,
     },
-
-    #[error("SOF data is too short")]
-    SofDataTooShort { position: usize },
-
-    #[error("Invalid frame marker: 0x{word:04x} at position {position} (0x{position:04x})")]
-    InvalidFrameMarker { word: u16, position: usize },
-
-    #[error("Invalid JPEG segment length: {0:?}")]
+    SofDataTooShort {
+        position: usize,
+    },
+    InvalidFrameMarker {
+        word: u16,
+        position: usize,
+    },
     InvalidSegmentLength(usize),
-
-    #[error("Unexpected end of data at position {0}")]
     UnexpectedEndOfData(usize),
 }
+
+impl Display for JpegDecodingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self {
+            JpegDecodingError::NoSoiMarker => write!(f, "No SOI marker found"),
+            JpegDecodingError::NoSofMarker { position, comments } => write!(
+                f,
+                "No SOF marker found (position: {}, comments: {:?})",
+                position, comments
+            ),
+            JpegDecodingError::SofDataTooShort { position } => {
+                write!(f, "SOF data is too short (position: {})", position)
+            }
+            JpegDecodingError::InvalidFrameMarker { word, position } => write!(
+                f,
+                "Invalid frame marker: 0x{:04x} at position {} (0x{:04x})",
+                word, position, position
+            ),
+            JpegDecodingError::InvalidSegmentLength(len) => {
+                write!(f, "Invalid JPEG segment length: {}", len)
+            }
+            JpegDecodingError::UnexpectedEndOfData(position) => {
+                write!(f, "Unexpected end of data at position {}", position)
+            }
+        }
+    }
+}
+
+impl std::error::Error for JpegDecodingError {}
 
 /// Read JPEG data, and return its dimensions and any comments found.
 pub fn read_jpeg_data(buf: &[u8]) -> Result<ImageMetadata, JpegDecodingError> {
@@ -187,7 +211,6 @@ impl<'a> JpegContext<'a> {
             }
 
             // Not a marker, so search for the next 0xff and keep looking.
-            log::warn!("Resyncing to next marker from position {}", self.position);
             if let Some(pos) = memchr::memchr(0xff, &self.buf[self.position + 1..]) {
                 self.position += pos + 1;
             } else {
