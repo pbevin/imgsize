@@ -1,13 +1,13 @@
 [package]
 name = "pb-imgsize"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 license = "MIT"
 authors = ["Pete Bevin <pete@petebevin.com>"]
 description = "A Rust library to detect the dimensions of PNG and JPEG images."
 repository = "https://github.com/pbevin/imgsize"
 readme = "README.md"
-keywords = ["image", "png", "jpeg", "dimensions", "size", "detect"]
+keywords = ["image", "png", "jpeg"]
 
 
 [dependencies]
