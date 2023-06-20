@@ -1,11 +1,7 @@
 use super::ImageMetadata;
-use std::io;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
 pub enum PngDecodingError {
-    #[error("IO error: {0}")]
-    Io(#[from] io::Error),
-
     #[error("IHDR chunk missing from PNG")]
     MissingIHDR,
 

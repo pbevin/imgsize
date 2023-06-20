@@ -2,7 +2,7 @@ use std::fmt::{self, Debug};
 
 use super::ImageMetadata;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
 pub enum JpegDecodingError {
     #[error("No SOI marker found")]
     NoSoiMarker,
