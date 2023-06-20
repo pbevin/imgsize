@@ -1,6 +1,6 @@
 [package]
 name = "pb-imgsize"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
 license = "MIT"
 authors = ["Pete Bevin <pete@petebevin.com>"]
